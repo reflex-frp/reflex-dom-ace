@@ -53,7 +53,7 @@ startACE elemId ac =
                 (toJSString $ aceConfigMode ac)
 
 foreign import javascript unsafe
-  "(function(){ var a = ace['edit']($1); a['config']['set']('basePath', $2); a['session']['setMode']($3); return a; })()"
+  "(function(){ ace['config']['set']('basePath', $2); var a = ace['edit']($1); a['session']['setMode']($3); return a; })()"
   js_startACE :: JSString -> JSString -> JSString -> IO AceRef
 
 #else
@@ -73,9 +73,9 @@ moveursorToPosition = error "moveCursorToPosition: can only be used with GHCJS"
 #endif
 
 ------------------------------------------------------------------------------
-setModeACE :: Text -> AceRef -> IO ()
+setModeACE :: MonadIO m => Text -> AceRef -> m ()
 #ifdef ghcjs_HOST_OS
-setModeACE mode = js_aceSetMode (toJSString mode)
+setModeACE mode = liftIO . js_aceSetMode (toJSString mode)
 
 foreign import javascript unsafe
   "(function(){ return $1['session']['setMode']($2); })()"
@@ -85,9 +85,9 @@ setModeACE = error "setModeACE: can only be used with GHCJS"
 #endif
 
 ------------------------------------------------------------------------------
-setConfigACE :: Text -> Text -> AceRef -> IO ()
+setConfigACE :: MonadIO m => Text -> Text -> AceRef -> m ()
 #ifdef ghcjs_HOST_OS
-setConfigACE key val = js_aceSetConfig (toJSString key) (toJSString val)
+setConfigACE key val = liftIO . js_aceSetConfig (toJSString key) (toJSString val)
 
 foreign import javascript unsafe
   "(function(){ return $3['config']['set']($1, $2); })()"
@@ -97,21 +97,21 @@ setConfigACE = error "setConfigACE: can only be used with GHCJS"
 #endif
 
 ------------------------------------------------------------------------------
-aceGetValue :: AceRef -> IO Text
+getValueACE :: MonadIO m => AceRef -> m Text
 #ifdef ghcjs_HOST_OS
-aceGetValue a = fromJSString <$> js_aceGetValue a
+getValueACE a = liftIO $ fromJSString <$> js_aceGetValue a
 
 foreign import javascript unsafe
   "(function(){ return $1['getValue'](); })()"
   js_aceGetValue :: AceRef -> IO JSString
 #else
-aceGetValue = error "aceGetValue: can only be used with GHCJS"
+getValueACE = error "getValueACE: can only be used with GHCJS"
 #endif
 
 ------------------------------------------------------------------------------
-setValueACE :: Text -> AceRef -> IO ()
+setValueACE :: MonadIO m => Text -> AceRef -> m ()
 #ifdef ghcjs_HOST_OS
-setValueACE v a = js_aceSetValue a (toJSString v)
+setValueACE v a = liftIO $ js_aceSetValue a (toJSString v)
 
 foreign import javascript unsafe
   "(function(){ $1['setValue']($2, -1); })()"
@@ -127,7 +127,7 @@ setupValueListener ace = do
     pb <- getPostBuild
     let act cb = liftIO $ do
           jscb <- asyncCallback1 $ \_ -> liftIO $ do
-              v <- aceGetValue ace
+              v <- getValueACE ace
               cb v
           js_setupValueListener ace jscb
     performEventAsync (act <$ pb)
