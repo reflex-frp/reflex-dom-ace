@@ -35,11 +35,9 @@ data ACE t = ACE
     , aceValue :: Dynamic t Text
     }
 
-type AceMode = Text
-type AceModePath = Text
-
 data AceConfig = AceConfig
-    { aceConfigMode      :: Either AceMode AceModePath
+    { aceConfigBasePath :: Text
+    , aceConfigMode     :: Text
     }
 
 ------------------------------------------------------------------------------
@@ -50,17 +48,14 @@ startACE
     -> IO AceRef
 #ifdef ghcjs_HOST_OS
 startACE elemId ac =
-    case aceConfigMode ac of
-      Left m -> js_startACE (toJSString elemId) (toJSString m)
-      Right mp -> js_startACEModePath (toJSString elemId) (toJSString mp)
+    js_startACE (toJSString elemId)
+                (toJSString $ aceConfigBasePath ac)
+                (toJSString $ aceConfigMode ac)
 
 foreign import javascript unsafe
-  "(function(){ var a = ace['edit']($1); a['session']['setMode']($2); return a; })()"
-  js_startACE :: JSString -> JSString -> IO AceRef
+  "(function(){ var a = ace['edit']($1); a['config']['set']('basePath', $2); a['session']['setMode']($3); return a; })()"
+  js_startACE :: JSString -> JSString -> JSString -> IO AceRef
 
-foreign import javascript unsafe
-  "(function(){ var a = ace['edit']($1); a['session']['setMode']({path: $2}); return a; })()"
-  js_startACEModePath :: JSString -> JSString -> IO AceRef
 #else
 startACE = error "startACE: can only be used with GHCJS"
 #endif
@@ -86,7 +81,19 @@ foreign import javascript unsafe
   "(function(){ return $1['session']['setMode']($2); })()"
   js_aceSetMode :: JSString -> AceRef -> IO ()
 #else
-setModeACE = error "aceGetValue: can only be used with GHCJS"
+setModeACE = error "setModeACE: can only be used with GHCJS"
+#endif
+
+------------------------------------------------------------------------------
+setConfigACE :: Text -> Text -> AceRef -> IO ()
+#ifdef ghcjs_HOST_OS
+setConfigACE key val = js_aceSetConfig (toJSString key) (toJSString val)
+
+foreign import javascript unsafe
+  "(function(){ return $3['config']['set']($1, $2); })()"
+  js_aceSetConfig :: JSString -> JSString -> AceRef -> IO ()
+#else
+setConfigACE = error "setConfigACE: can only be used with GHCJS"
 #endif
 
 ------------------------------------------------------------------------------
