@@ -31,18 +31,38 @@ import           Reflex.Dom hiding (fromJSString)
 newtype AceRef = AceRef { unAceRef :: JSVal }
 
 data ACE t = ACE
-    { aceRef :: Dynamic t (Maybe AceRef)
+    { aceRef   :: Dynamic t (Maybe AceRef)
     , aceValue :: Dynamic t Text
     }
 
+data AceConfig = AceConfig
+    { aceConfigMode      :: Text
+    , aceConfigModePath  :: Maybe Text
+    }
+
 ------------------------------------------------------------------------------
-startACE :: Text -> Text -> IO AceRef
+startACE
+    :: Text
+    -- ^ The ID of the element to attach to
+    -> AceConfig
+    -> IO AceRef
 #ifdef ghcjs_HOST_OS
-startACE elemId mode = js_startACE (toJSString elemId) (toJSString mode)
+startACE elemId ac = case aceConfigModePath ac of
+                Nothing -> js_startACE
+                             (toJSString elemId)
+                             (toJSString $ aceConfigMode ac)
+                Just mp -> js_startACEModePath
+                             (toJSString elemId)
+                             (toJSString $ aceConfigMode ac)
+                             (toJSString mp)
 
 foreign import javascript unsafe
-  "(function(){ var a = ace['edit']($1); a.session.setMode($2); return a; })()"
+  "(function(){ var a = ace['edit']($1); a['session']['setMode']($2); return a; })()"
   js_startACE :: JSString -> JSString -> IO AceRef
+
+foreign import javascript unsafe
+  "(function(){ var a = ace['edit']($1); a['session']['setMode'](ace['require']($2)['getModeForPath']($3)['mode']); return a; })()"
+  js_startACEModePath :: JSString -> JSString -> JSString -> IO AceRef
 #else
 startACE = error "startACE: can only be used with GHCJS"
 #endif
@@ -104,13 +124,13 @@ setupValueListener = error "setupValueListener: can only be used with GHCJS"
 
 
 ------------------------------------------------------------------------------
-aceWidget :: MonadWidget t m => Text -> Text -> m (ACE t)
-aceWidget mode initContents = do
+aceWidget :: MonadWidget t m => AceConfig -> Text -> m (ACE t)
+aceWidget ac initContents = do
     let elemId = "editor"
     elAttr "pre" ("id" =: elemId <> "class" =: "ui segment") $ text initContents
 
     pb <- getPostBuild
-    aceUpdates <- performEvent (liftIO (startACE "editor" mode) <$ pb)
+    aceUpdates <- performEvent (liftIO (startACE "editor" ac) <$ pb)
     res <- widgetHold (return never) $ setupValueListener <$> aceUpdates
     aceDyn <- holdDyn Nothing $ Just <$> aceUpdates
     updatesDyn <- holdDyn initContents $ switchPromptlyDyn res
