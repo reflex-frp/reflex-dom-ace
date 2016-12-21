@@ -66,15 +66,27 @@ startACE = error "startACE: can only be used with GHCJS"
 #endif
 
 ------------------------------------------------------------------------------
-moveCursorToPosition :: AceRef -> (Int, Int) -> IO ()
+moveCursorToPosition :: (Int, Int) -> AceRef -> IO ()
 #ifdef ghcjs_HOST_OS
-moveCursorToPosition a (r,c) = js_moveCursorToPosition a r c
+moveCursorToPosition (r,c) a = js_moveCursorToPosition a r c
 
 foreign import javascript unsafe
   "(function(){ $1['gotoLine']($2, $3, true); })()"
   js_moveCursorToPosition :: AceRef -> Int -> Int -> IO ()
 #else
 moveursorToPosition = error "moveCursorToPosition: can only be used with GHCJS"
+#endif
+
+------------------------------------------------------------------------------
+setModeACE :: Text -> AceRef -> IO ()
+#ifdef ghcjs_HOST_OS
+setModeACE mode = js_aceSetMode (toJSString mode)
+
+foreign import javascript unsafe
+  "(function(){ return $1['session']['setMode']($2); })()"
+  js_aceSetMode :: JSString -> AceRef -> IO ()
+#else
+setModeACE = error "aceGetValue: can only be used with GHCJS"
 #endif
 
 ------------------------------------------------------------------------------
@@ -90,9 +102,9 @@ aceGetValue = error "aceGetValue: can only be used with GHCJS"
 #endif
 
 ------------------------------------------------------------------------------
-setValueACE :: AceRef -> Text -> IO ()
+setValueACE :: Text -> AceRef -> IO ()
 #ifdef ghcjs_HOST_OS
-setValueACE a = js_aceSetValue a . toJSString
+setValueACE v a = js_aceSetValue a (toJSString v)
 
 foreign import javascript unsafe
   "(function(){ $1['setValue']($2, -1); })()"
@@ -137,19 +149,26 @@ aceWidget ac initContents = do
 
 
 ------------------------------------------------------------------------------
-aceSetValue :: MonadWidget t m => ACE t -> Event t Text -> m ()
-aceSetValue ace val =
-    performEvent_ $ attachPromptlyDynWith f (aceRef ace) val
+-- | Convenient helper function for running functions that need an AceRef.
+withAceRef
+    :: PerformEvent t m
+    => ACE t
+    -> Event t (AceRef -> Performable m ())
+    -> m (Event t ())
+withAceRef ace evt = withAceRef' ace (f <$> evt)
   where
-    f Nothing _ = return ()
-    f (Just ref) pos = liftIO $ setValueACE ref pos
+    f _ Nothing = return ()
+    f g (Just a) = g a
 
 
 ------------------------------------------------------------------------------
-aceMoveCursor :: MonadWidget t m => ACE t -> Event t (Int,Int) -> m ()
-aceMoveCursor ace posE =
-    performEvent_ $ attachPromptlyDynWith f (aceRef ace) posE
-  where
-    f Nothing _ = return ()
-    f (Just ref) pos = liftIO $ moveCursorToPosition ref pos
+-- | More powerful function for running functions that need an AceRef.
+withAceRef'
+    :: PerformEvent t m
+    => ACE t
+    -> Event t (Maybe AceRef -> Performable m a)
+    -> m (Event t a)
+withAceRef' ace val =
+    performEvent $ attachPromptlyDynWith (flip ($)) (aceRef ace) val
+
 
