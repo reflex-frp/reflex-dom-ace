@@ -36,13 +36,13 @@ data ACE t = ACE
     }
 
 ------------------------------------------------------------------------------
-startACE :: Text -> IO AceRef
+startACE :: Text -> Text -> IO AceRef
 #ifdef ghcjs_HOST_OS
-startACE = js_startACE . toJSString
+startACE elemId mode = js_startACE (toJSString elemId) (toJSString mode)
 
 foreign import javascript unsafe
-  "(function(){ var a = ace['edit']($1); a.session.setMode(\"ace/mode/haskell\"); return a; })()"
-  js_startACE :: JSString -> IO AceRef
+  "(function(){ var a = ace['edit']($1); a.session.setMode($2); return a; })()"
+  js_startACE :: JSString -> JSString -> IO AceRef
 #else
 startACE = error "startACE: can only be used with GHCJS"
 #endif
@@ -104,13 +104,13 @@ setupValueListener = error "setupValueListener: can only be used with GHCJS"
 
 
 ------------------------------------------------------------------------------
-aceWidget :: MonadWidget t m => Text -> m (ACE t)
-aceWidget initContents = do
+aceWidget :: MonadWidget t m => Text -> Text -> m (ACE t)
+aceWidget mode initContents = do
     let elemId = "editor"
     elAttr "pre" ("id" =: elemId <> "class" =: "ui segment") $ text initContents
 
     pb <- getPostBuild
-    aceUpdates <- performEvent (liftIO (startACE "editor") <$ pb)
+    aceUpdates <- performEvent (liftIO (startACE "editor" mode) <$ pb)
     res <- widgetHold (return never) $ setupValueListener <$> aceUpdates
     aceDyn <- holdDyn Nothing $ Just <$> aceUpdates
     updatesDyn <- holdDyn initContents $ switchPromptlyDyn res
