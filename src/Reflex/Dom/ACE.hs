@@ -87,7 +87,6 @@ setValueACE = error "setValueACE: can only be used with GHCJS"
 setupValueListener :: MonadWidget t m => AceRef -> m (Event t Text)
 #ifdef ghcjs_HOST_OS
 setupValueListener ace = do
-    -- FIXME Need to figure out how to implement this with the new reflex-dom
     pb <- getPostBuild
     let act cb = liftIO $ do
           jscb <- asyncCallback1 $ \_ -> liftIO $ do
@@ -95,18 +94,6 @@ setupValueListener ace = do
               cb v
           js_setupValueListener ace jscb
     performEventAsync (act <$ pb)
-
-    --postGui <- askPostGui
-    --runWithActions <- askRunWithActions
-    --e <- newEventWithTrigger $ \et -> do
-    --      cb <- asyncCallback1 $ \_ -> liftIO $ do
-    --          v <- aceGetValue ace
-    --          postGui $ runWithActions [et :=> Identity v]
-    --      js_setupValueListener ace cb
-    --      return (return ())
-    --      -- TODO Probably need some kind of unsubscribe mechanism
-    --      --return $ liftIO unsubscribe
-    --return $! e
 
 foreign import javascript unsafe
   "(function(){ $1['on'](\"change\", $2); })()"
