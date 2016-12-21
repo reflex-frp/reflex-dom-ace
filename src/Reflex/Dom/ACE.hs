@@ -35,9 +35,11 @@ data ACE t = ACE
     , aceValue :: Dynamic t Text
     }
 
+type AceMode = Text
+type AceModePath = Text
+
 data AceConfig = AceConfig
-    { aceConfigMode      :: Text
-    , aceConfigModePath  :: Maybe Text
+    { aceConfigMode      :: Either AceMode AceModePath
     }
 
 ------------------------------------------------------------------------------
@@ -47,22 +49,18 @@ startACE
     -> AceConfig
     -> IO AceRef
 #ifdef ghcjs_HOST_OS
-startACE elemId ac = case aceConfigModePath ac of
-                Nothing -> js_startACE
-                             (toJSString elemId)
-                             (toJSString $ aceConfigMode ac)
-                Just mp -> js_startACEModePath
-                             (toJSString elemId)
-                             (toJSString $ aceConfigMode ac)
-                             (toJSString mp)
+startACE elemId ac =
+    case aceConfigMode ac of
+      Left m -> js_startACE (toJSString elemId) (toJSString m)
+      Right mp -> js_startACEModePath (toJSString elemId) (toJSString mp)
 
 foreign import javascript unsafe
   "(function(){ var a = ace['edit']($1); a['session']['setMode']($2); return a; })()"
   js_startACE :: JSString -> JSString -> IO AceRef
 
 foreign import javascript unsafe
-  "(function(){ var a = ace['edit']($1); a['session']['setMode'](ace['require']($2)['getModeForPath']($3)['mode']); return a; })()"
-  js_startACEModePath :: JSString -> JSString -> JSString -> IO AceRef
+  "(function(){ var a = ace['edit']($1); a['session']['setMode']({path: $2}); return a; })()"
+  js_startACEModePath :: JSString -> JSString -> IO AceRef
 #else
 startACE = error "startACE: can only be used with GHCJS"
 #endif
