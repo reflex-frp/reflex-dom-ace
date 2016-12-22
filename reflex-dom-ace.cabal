@@ -17,6 +17,7 @@ library
 
   build-depends:
       base
+    , containers
     , ghcjs-dom
     , mtl
     , reflex

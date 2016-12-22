@@ -17,6 +17,7 @@ module Reflex.Dom.ACE where
 ------------------------------------------------------------------------------
 import           Control.Monad.Trans
 import           Data.Monoid
+import           Data.Map (Map)
 import           Data.Text (Text)
 import           GHCJS.DOM.Types hiding (Event, Text)
 #ifdef ghcjs_HOST_OS
@@ -38,17 +39,17 @@ data ACE t = ACE
 data AceConfig = AceConfig
     { aceConfigBasePath :: Text
     , aceConfigMode     :: Text
+    , aceElemId         :: Text
+    , aceElemAttrs      :: Map Text Text
     }
 
 ------------------------------------------------------------------------------
 startACE
-    :: Text
-    -- ^ The ID of the element to attach to
-    -> AceConfig
+    :: AceConfig
     -> IO AceRef
 #ifdef ghcjs_HOST_OS
-startACE elemId ac =
-    js_startACE (toJSString elemId)
+startACE ac =
+    js_startACE (toJSString $ aceElemId ac)
                 (toJSString $ aceConfigBasePath ac)
                 (toJSString $ aceConfigMode ac)
 
@@ -143,11 +144,11 @@ setupValueListener = error "setupValueListener: can only be used with GHCJS"
 ------------------------------------------------------------------------------
 aceWidget :: MonadWidget t m => AceConfig -> Text -> m (ACE t)
 aceWidget ac initContents = do
-    let elemId = "editor"
-    elAttr "pre" ("id" =: elemId <> "class" =: "ui segment") $ text initContents
+    elAttr "div" ("id" =: aceElemId ac <> aceElemAttrs ac) $
+      text initContents
 
     pb <- getPostBuild
-    aceUpdates <- performEvent (liftIO (startACE "editor" ac) <$ pb)
+    aceUpdates <- performEvent (liftIO (startACE ac) <$ pb)
     res <- widgetHold (return never) $ setupValueListener <$> aceUpdates
     aceDyn <- holdDyn Nothing $ Just <$> aceUpdates
     updatesDyn <- holdDyn initContents $ switchPromptlyDyn res
