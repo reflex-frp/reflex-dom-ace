@@ -16,11 +16,14 @@ module Reflex.Dom.ACE where
 
 ------------------------------------------------------------------------------
 import           Control.Monad.Trans
+import           Data.Default
 import           Data.Monoid
 import           Data.Map (Map)
 import           Data.Text (Text)
+import qualified Data.Text as T
 import           GHCJS.DOM.Types hiding (Event, Text)
 #ifdef ghcjs_HOST_OS
+import           GHCJS.Foreign
 import           GHCJS.Foreign.Callback
 import           GHCJS.Types
 #endif
@@ -29,6 +32,92 @@ import           Reflex.Dom hiding (fromJSString)
 ------------------------------------------------------------------------------
 
 
+data AceTheme
+  = AceTheme_Chrome
+  | AceTheme_Clouds
+  | AceTheme_CrimsonEditor
+  | AceTheme_Dawn
+  | AceTheme_Dreamweaver
+  | AceTheme_Eclipse
+  | AceTheme_Github
+  | AceTheme_Iplastic
+  | AceTheme_SolarizedLight
+  | AceTheme_Textmate
+  | AceTheme_Tomorrow
+  | AceTheme_Xcode
+  | AceTheme_Kuroir
+  | AceTheme_Katzenmilch
+  | AceTheme_Sqlserver
+  | AceTheme_Ambiance
+  | AceTheme_Chaos
+  | AceTheme_CloudsMidnight
+  | AceTheme_Cobalt
+  | AceTheme_Gruvbox
+  | AceTheme_IdleFingers
+  | AceTheme_KrTheme
+  | AceTheme_Merbivore
+  | AceTheme_MerbivoreSoft
+  | AceTheme_MonoIndustrial
+  | AceTheme_Monokai
+  | AceTheme_PastelOnDark
+  | AceTheme_SolarizedArk
+  | AceTheme_Terminal
+  | AceTheme_TomorrowNight
+  | AceTheme_TomorrowNightBlue
+  | AceTheme_TomorrowNightBright
+  | AceTheme_TomorrowNightEighties
+  | AceTheme_Twilight
+  | AceTheme_VibrantInk
+  deriving (Eq,Ord,Enum,Bounded)
+
+instance Show AceTheme where
+    show AceTheme_Ambiance = "ambiance"
+    show AceTheme_Chaos = "chaos"
+    show AceTheme_Chrome = "chrome"
+    show AceTheme_Clouds = "clouds"
+    show AceTheme_CloudsMidnight = "clouds_midnight"
+    show AceTheme_Cobalt = "cobalt"
+    show AceTheme_CrimsonEditor = "crimson_editor"
+    show AceTheme_Dawn = "dawn"
+    show AceTheme_Dreamweaver = "dreamweaver"
+    show AceTheme_Eclipse = "eclipse"
+    show AceTheme_Github = "github"
+    show AceTheme_Gruvbox = "gruvbox"
+    show AceTheme_IdleFingers = "idle_fingers"
+    show AceTheme_Iplastic = "iplastic"
+    show AceTheme_Katzenmilch = "katzenmilch"
+    show AceTheme_KrTheme = "kr_theme"
+    show AceTheme_Kuroir = "kuroir"
+    show AceTheme_Merbivore = "merbivore"
+    show AceTheme_MerbivoreSoft = "merbivore_soft"
+    show AceTheme_MonoIndustrial = "mono_industrial"
+    show AceTheme_Monokai = "monokai"
+    show AceTheme_PastelOnDark = "pastel_on_dark"
+    show AceTheme_SolarizedArk = "solarized_ark"
+    show AceTheme_SolarizedLight = "solarized_light"
+    show AceTheme_Sqlserver = "sqlserver"
+    show AceTheme_Terminal = "terminal"
+    show AceTheme_Textmate = "textmate"
+    show AceTheme_Tomorrow = "tomorrow"
+    show AceTheme_TomorrowNight = "tomorrow_night"
+    show AceTheme_TomorrowNightBlue = "tomorrow_night_blue"
+    show AceTheme_TomorrowNightBright = "tomorrow_night_bright"
+    show AceTheme_TomorrowNightEighties = "tomorrow_night_eighties"
+    show AceTheme_Twilight = "twilight"
+    show AceTheme_VibrantInk = "vibrant_ink"
+    show AceTheme_Xcode = "xcode"
+
+data AceConfig = AceConfig
+    { aceElemId         :: Text
+    , aceElemAttrs      :: Map Text Text
+    , aceConfigBasePath :: Maybe Text
+    , aceConfigMode     :: Maybe Text
+    , aceTheme          :: Maybe AceTheme
+    }
+
+instance Default AceConfig where
+    def = AceConfig "editor" def def def def
+
 newtype AceRef = AceRef { unAceRef :: JSVal }
 
 data ACE t = ACE
@@ -36,12 +125,8 @@ data ACE t = ACE
     , aceValue :: Dynamic t Text
     }
 
-data AceConfig = AceConfig
-    { aceConfigBasePath :: Text
-    , aceConfigMode     :: Text
-    , aceElemId         :: Text
-    , aceElemAttrs      :: Map Text Text
-    }
+mtext2val :: Maybe Text -> JSVal
+mtext2val = maybe jsNull (jsval . toJSString)
 
 ------------------------------------------------------------------------------
 startACE
@@ -50,12 +135,18 @@ startACE
 #ifdef ghcjs_HOST_OS
 startACE ac =
     js_startACE (toJSString $ aceElemId ac)
-                (toJSString $ aceConfigBasePath ac)
-                (toJSString $ aceConfigMode ac)
+                (mtext2val $ aceConfigBasePath ac)
+                (mtext2val $ aceConfigMode ac)
+                (mtext2val $ T.pack . show <$> aceTheme ac)
 
 foreign import javascript unsafe
-  "(function(){ ace['config']['set']('basePath', $2); var a = ace['edit']($1); a['session']['setMode']($3); return a; })()"
-  js_startACE :: JSString -> JSString -> JSString -> IO AceRef
+  "(function(){\
+     if ($2) ace['config']['set']('basePath', $2);\
+     var a = ace['edit']($1);\
+     if ($3) a['session']['setMode']($3);\
+     if ($4) a['setTheme']($4);\
+     return a; })()"
+  js_startACE :: JSString -> JSVal -> JSVal -> JSVal -> IO AceRef
 
 #else
 startACE = error "startACE: can only be used with GHCJS"
