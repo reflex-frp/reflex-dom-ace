@@ -108,11 +108,11 @@ instance Show AceTheme where
     show AceTheme_Xcode = "xcode"
 
 data AceConfig = AceConfig
-    { aceElemId         :: Text
-    , aceElemAttrs      :: Map Text Text
-    , aceConfigBasePath :: Maybe Text
-    , aceConfigMode     :: Maybe Text
-    , aceTheme          :: Maybe AceTheme
+    { _aceConfigElemId    :: Text
+    , _aceConfigElemAttrs :: Map Text Text
+    , _aceConfigBasePath  :: Maybe Text
+    , _aceConfigMode      :: Maybe Text
+    , _aceConfigTheme     :: Maybe AceTheme
     }
 
 instance Default AceConfig where
@@ -134,10 +134,10 @@ startACE
     -> IO AceRef
 #ifdef ghcjs_HOST_OS
 startACE ac =
-    js_startACE (toJSString $ aceElemId ac)
-                (mtext2val $ aceConfigBasePath ac)
-                (mtext2val $ aceConfigMode ac)
-                (mtext2val $ T.pack . show <$> aceTheme ac)
+    js_startACE (toJSString $ _aceConfigElemId ac)
+                (mtext2val $ _aceConfigBasePath ac)
+                (mtext2val $ _aceConfigMode ac)
+                (mtext2val $ T.pack . show <$> _aceConfigTheme ac)
 
 foreign import javascript unsafe
   "(function(){\
@@ -235,7 +235,7 @@ setupValueListener = error "setupValueListener: can only be used with GHCJS"
 ------------------------------------------------------------------------------
 aceWidget :: MonadWidget t m => AceConfig -> Text -> m (ACE t)
 aceWidget ac initContents = do
-    elAttr "div" ("id" =: aceElemId ac <> aceElemAttrs ac) $
+    elAttr "div" ("id" =: _aceConfigElemId ac <> _aceConfigElemAttrs ac) $
       text initContents
 
     pb <- getPostBuild
