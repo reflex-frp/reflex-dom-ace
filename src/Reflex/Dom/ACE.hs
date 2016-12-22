@@ -144,7 +144,7 @@ foreign import javascript unsafe
      if ($2) ace['config']['set']('basePath', $2);\
      var a = ace['edit']($1);\
      if ($3) a['session']['setMode']($3);\
-     if ($4) a['setTheme']($4);\
+     if ($4) a['setTheme']('ace/theme/' + $4);\
      return a; })()"
   js_startACE :: JSString -> JSVal -> JSVal -> JSVal -> IO AceRef
 
