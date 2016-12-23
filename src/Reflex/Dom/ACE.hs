@@ -276,8 +276,9 @@ aceWidget ac adc adcUps initContents = do
   where
     static = "id" =: _aceConfigElemId ac <> _aceConfigElemAttrs ac
     themeAttr t = " ace-" <> T.pack (show t)
-    addThemeAttr c =
-      M.insertWith (<>) "class" (themeAttr $ _aceDynConfigTheme c) static
+    addThemeAttr c = maybe static 
+      (\t -> M.insertWith (<>) "class" (themeAttr t) static)
+      (_aceDynConfigTheme c)
 
 
 ------------------------------------------------------------------------------
