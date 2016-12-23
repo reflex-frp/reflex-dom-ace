@@ -19,6 +19,7 @@ import           Control.Monad.Trans
 import           Data.Default
 import           Data.Monoid
 import           Data.Map (Map)
+import qualified Data.Map as M
 import           Data.Text (Text)
 import qualified Data.Text as T
 import           GHCJS.DOM.Types hiding (Event, Text)
@@ -112,11 +113,14 @@ data AceConfig = AceConfig
     , _aceConfigElemAttrs :: Map Text Text
     , _aceConfigBasePath  :: Maybe Text
     , _aceConfigMode      :: Maybe Text
-    , _aceConfigTheme     :: Maybe AceTheme
+    }
+
+data AceDynConfig = AceDynConfig
+    { _aceDynConfigTheme :: Maybe AceTheme
     }
 
 instance Default AceConfig where
-    def = AceConfig "editor" def def def def
+    def = AceConfig "editor" def def def
 
 newtype AceRef = AceRef { unAceRef :: JSVal }
 
@@ -137,16 +141,14 @@ startACE ac =
     js_startACE (toJSString $ _aceConfigElemId ac)
                 (mtext2val $ _aceConfigBasePath ac)
                 (mtext2val $ _aceConfigMode ac)
-                (mtext2val $ T.pack . show <$> _aceConfigTheme ac)
 
 foreign import javascript unsafe
   "(function(){\
      if ($2) ace['config']['set']('basePath', $2);\
      var a = ace['edit']($1);\
      if ($3) a['session']['setMode']($3);\
-     if ($4) a['setTheme']('ace/theme/' + $4);\
      return a; })()"
-  js_startACE :: JSString -> JSVal -> JSVal -> JSVal -> IO AceRef
+  js_startACE :: JSString -> JSVal -> JSVal -> IO AceRef
 
 #else
 startACE = error "startACE: can only be used with GHCJS"
@@ -162,6 +164,22 @@ foreign import javascript unsafe
   js_moveCursorToPosition :: AceRef -> Int -> Int -> IO ()
 #else
 moveursorToPosition = error "moveCursorToPosition: can only be used with GHCJS"
+#endif
+
+------------------------------------------------------------------------------
+setThemeACE :: MonadIO m => Maybe AceTheme -> AceRef -> m ()
+#ifdef ghcjs_HOST_OS
+setThemeACE Nothing _ = return ()
+setThemeACE (Just theme) ref =
+    liftIO $ js_aceSetTheme (toJSString themeStr) ref
+  where
+    themeStr = "ace/theme/" <> show theme
+
+foreign import javascript unsafe
+  "(function(){ return $1['setTheme']($2); })()"
+  js_aceSetTheme :: JSString -> AceRef -> IO ()
+#else
+setThemeACE = error "setThemeACE: can only be used with GHCJS"
 #endif
 
 ------------------------------------------------------------------------------
@@ -233,18 +251,33 @@ setupValueListener = error "setupValueListener: can only be used with GHCJS"
 
 
 ------------------------------------------------------------------------------
-aceWidget :: MonadWidget t m => AceConfig -> Text -> m (ACE t)
-aceWidget ac initContents = do
-    elAttr "div" ("id" =: _aceConfigElemId ac <> _aceConfigElemAttrs ac) $
-      text initContents
+aceWidget
+    :: MonadWidget t m
+    => AceConfig
+    -> AceDynConfig
+    -> Event t AceDynConfig
+    -> Text
+    -> m (ACE t)
+aceWidget ac adc adcUps initContents = do
+    attrs <- holdDyn (addThemeAttr adc) (addThemeAttr <$> adcUps)
+    elDynAttr "div" attrs $ text initContents
 
     pb <- getPostBuild
     aceUpdates <- performEvent (liftIO (startACE ac) <$ pb)
+
     res <- widgetHold (return never) $ setupValueListener <$> aceUpdates
     aceDyn <- holdDyn Nothing $ Just <$> aceUpdates
     updatesDyn <- holdDyn initContents $ switchPromptlyDyn res
 
-    return $ ACE aceDyn updatesDyn
+    let ace = ACE aceDyn updatesDyn
+    withAceRef ace (setThemeACE (_aceDynConfigTheme adc) <$ pb)
+    withAceRef ace (setThemeACE . _aceDynConfigTheme <$> adcUps)
+    return ace
+  where
+    static = "id" =: _aceConfigElemId ac <> _aceConfigElemAttrs ac
+    themeAttr t = " ace-" <> T.pack (show t)
+    addThemeAttr c =
+      M.insertWith (<>) "class" (themeAttr $ _aceDynConfigTheme c) static
 
 
 ------------------------------------------------------------------------------
