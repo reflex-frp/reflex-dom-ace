@@ -22,8 +22,8 @@ import           Data.Map (Map)
 import qualified Data.Map as M
 import           Data.Text (Text)
 import qualified Data.Text as T
-import           GHCJS.DOM.Types hiding (Event, Text)
 #ifdef ghcjs_HOST_OS
+import           GHCJS.DOM.Types hiding (Event, Text)
 import           GHCJS.Foreign
 import           GHCJS.Foreign.Callback
 import           GHCJS.Types
@@ -122,6 +122,18 @@ data AceDynConfig = AceDynConfig
 instance Default AceConfig where
     def = AceConfig "editor" def def def
 
+#ifndef ghcjs_HOST_OS
+data JSVal = JSVal
+jsNull :: JSVal
+jsNull = JSVal
+
+jsval :: a -> JSVal
+jsval = const JSVal
+
+toJSString :: a -> b
+toJSString _ = undefined
+#endif
+
 newtype AceRef = AceRef { unAceRef :: JSVal }
 
 data ACE t = ACE
@@ -133,9 +145,7 @@ mtext2val :: Maybe Text -> JSVal
 mtext2val = maybe jsNull (jsval . toJSString)
 
 ------------------------------------------------------------------------------
-startACE
-    :: AceConfig
-    -> IO AceRef
+startACE :: AceConfig -> IO AceRef
 #ifdef ghcjs_HOST_OS
 startACE ac =
     js_startACE (toJSString $ _aceConfigElemId ac)
@@ -163,7 +173,8 @@ foreign import javascript unsafe
   "(function(){ $1['gotoLine']($2, $3, true); })()"
   js_moveCursorToPosition :: AceRef -> Int -> Int -> IO ()
 #else
-moveursorToPosition = error "moveCursorToPosition: can only be used with GHCJS"
+moveCursorToPosition _ _ =
+  error "moveCursorToPosition: can only be used with GHCJS"
 #endif
 
 ------------------------------------------------------------------------------
