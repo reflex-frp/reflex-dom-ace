@@ -171,13 +171,13 @@ setThemeACE :: MonadIO m => Maybe AceTheme -> AceRef -> m ()
 #ifdef ghcjs_HOST_OS
 setThemeACE Nothing _ = return ()
 setThemeACE (Just theme) ref =
-    liftIO $ js_aceSetTheme (toJSString themeStr) ref
+    liftIO $ js_aceSetTheme ref (toJSString themeStr)
   where
     themeStr = "ace/theme/" <> show theme
 
 foreign import javascript unsafe
   "(function(){ return $1['setTheme']($2); })()"
-  js_aceSetTheme :: JSString -> AceRef -> IO ()
+  js_aceSetTheme :: AceRef -> JSString -> IO ()
 #else
 setThemeACE = error "setThemeACE: can only be used with GHCJS"
 #endif
