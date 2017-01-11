@@ -12,6 +12,25 @@
 {-# LANGUAGE TypeFamilies             #-}
 {-# LANGUAGE UndecidableInstances     #-}
 
+{-|
+
+Basic support for using the ACE editor with Reflex.
+
+Example usage:
+
+    ace <- divClass "yourACEWrapperDiv" $ -- wrapper div not required
+      aceWidget def (AceDynConfig Nothing) never "initial editor contents"
+
+    -- The rest is optional and lets you change what's in the editor on the fly
+    -- fly without redrawing the widget.
+    withAceRef ace (setValueACE <$> updatesToContents)
+    holdDyn iv $ leftmost
+      [ updatesToContents
+      , updated (aceValue ace)
+      ]
+
+-}
+
 module Reflex.Dom.ACE where
 
 ------------------------------------------------------------------------------
@@ -262,6 +281,7 @@ setupValueListener = error "setupValueListener: can only be used with GHCJS"
 
 
 ------------------------------------------------------------------------------
+-- | Main entry point
 aceWidget
     :: MonadWidget t m
     => AceConfig
