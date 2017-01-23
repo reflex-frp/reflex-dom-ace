@@ -129,8 +129,7 @@ instance Show AceTheme where
     show AceTheme_Xcode = "xcode"
 
 data AceConfig = AceConfig
-    { _aceConfigElemId    :: Text
-    , _aceConfigElemAttrs :: Map Text Text
+    { _aceConfigElemAttrs :: Map Text Text
     , _aceConfigBasePath  :: Maybe Text
     , _aceConfigMode      :: Maybe Text
     }
@@ -143,6 +142,7 @@ instance Default AceConfig where
     def = AceConfig "editor" def def def
 
 #ifndef ghcjs_HOST_OS
+data Element = Element
 data JSVal = JSVal
 jsNull :: JSVal
 jsNull = JSVal
@@ -152,6 +152,7 @@ jsval = const JSVal
 
 toJSString :: a -> b
 toJSString _ = undefined
+
 #endif
 
 newtype AceRef = AceRef { unAceRef :: JSVal }
@@ -310,7 +311,7 @@ aceWidget ac adc adcUps initContents = do
     withAceRef ace (setThemeACE . _aceDynConfigTheme <$> adcUps)
     return ace
   where
-    static = "id" =: _aceConfigElemId ac <> _aceConfigElemAttrs ac
+    static = _aceConfigElemAttrs ac
     themeAttr t = " ace-" <> T.pack (show t)
     addThemeAttr c = maybe static
       (\t -> M.insertWith (<>) "class" (themeAttr t) static)
@@ -339,8 +340,3 @@ withAceRef'
     -> m (Event t a)
 withAceRef' ace val =
     performEvent $ attachPromptlyDynWith (flip ($)) (aceRef ace) val
-
-
-#ifndef ghcjs_HOST_OS
-data Element = Element
-#endif
