@@ -139,7 +139,7 @@ data AceDynConfig = AceDynConfig
     }
 
 instance Default AceConfig where
-    def = AceConfig "editor" def def def
+    def = AceConfig def def def
 
 #ifndef ghcjs_HOST_OS
 data Element = Element
