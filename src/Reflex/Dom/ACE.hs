@@ -169,7 +169,6 @@ startACE :: Element -> AceConfig -> IO AceRef
 #ifdef ghcjs_HOST_OS
 startACE elmt ac =
     js_startACE (pToJSVal elmt)
-                -- (toJSString $ _aceConfigElemId ac)
                 (mtext2val $ _aceConfigBasePath ac)
                 (mtext2val $ _aceConfigMode ac)
 
