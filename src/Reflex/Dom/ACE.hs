@@ -43,12 +43,13 @@ import           Data.Text (Text)
 import qualified Data.Text as T
 #ifdef ghcjs_HOST_OS
 import           GHCJS.DOM.Types hiding (Event, Text)
+import           GHCJS.Marshal.Pure (pToJSVal)
 import           GHCJS.Foreign
 import           GHCJS.Foreign.Callback
 import           GHCJS.Types
 #endif
 import           Reflex
-import           Reflex.Dom hiding (fromJSString)
+import           Reflex.Dom hiding (Element, fromJSString)
 ------------------------------------------------------------------------------
 
 
@@ -128,8 +129,7 @@ instance Show AceTheme where
     show AceTheme_Xcode = "xcode"
 
 data AceConfig = AceConfig
-    { _aceConfigElemId    :: Text
-    , _aceConfigElemAttrs :: Map Text Text
+    { _aceConfigElemAttrs :: Map Text Text
     , _aceConfigBasePath  :: Maybe Text
     , _aceConfigMode      :: Maybe Text
     }
@@ -139,9 +139,10 @@ data AceDynConfig = AceDynConfig
     }
 
 instance Default AceConfig where
-    def = AceConfig "editor" def def def
+    def = AceConfig def def def
 
 #ifndef ghcjs_HOST_OS
+data Element = Element
 data JSVal = JSVal
 jsNull :: JSVal
 jsNull = JSVal
@@ -151,6 +152,7 @@ jsval = const JSVal
 
 toJSString :: a -> b
 toJSString _ = undefined
+
 #endif
 
 newtype AceRef = AceRef { unAceRef :: JSVal }
@@ -164,10 +166,10 @@ mtext2val :: Maybe Text -> JSVal
 mtext2val = maybe jsNull (jsval . toJSString)
 
 ------------------------------------------------------------------------------
-startACE :: AceConfig -> IO AceRef
+startACE :: Element -> AceConfig -> IO AceRef
 #ifdef ghcjs_HOST_OS
-startACE ac =
-    js_startACE (toJSString $ _aceConfigElemId ac)
+startACE elmt ac =
+    js_startACE (pToJSVal elmt)
                 (mtext2val $ _aceConfigBasePath ac)
                 (mtext2val $ _aceConfigMode ac)
 
@@ -177,7 +179,7 @@ foreign import javascript unsafe
      var a = ace['edit']($1);\
      if ($3) a['session']['setMode']($3);\
      return a; })()"
-  js_startACE :: JSString -> JSVal -> JSVal -> IO AceRef
+  js_startACE :: JSVal -> JSVal -> JSVal -> IO AceRef
 
 #else
 startACE = error "startACE: can only be used with GHCJS"
@@ -291,10 +293,14 @@ aceWidget
     -> m (ACE t)
 aceWidget ac adc adcUps initContents = do
     attrs <- holdDyn (addThemeAttr adc) (addThemeAttr <$> adcUps)
-    elDynAttr "div" attrs $ text initContents
-
+    aceDiv <- fmap fst $ elDynAttr' "div" attrs $ text initContents
+#ifdef ghcjs_HOST_OS
+    let aceEl = _element_raw aceDiv
+#else
+    let aceEl = (error "aceWidget is only available to ghcjs") aceDiv
+#endif
     pb <- getPostBuild
-    aceUpdates <- performEvent (liftIO (startACE ac) <$ pb)
+    aceUpdates <- performEvent (liftIO (startACE aceEl ac) <$ pb)
 
     res <- widgetHold (return never) $ setupValueListener <$> aceUpdates
     aceDyn <- holdDyn Nothing $ Just <$> aceUpdates
@@ -305,9 +311,9 @@ aceWidget ac adc adcUps initContents = do
     withAceRef ace (setThemeACE . _aceDynConfigTheme <$> adcUps)
     return ace
   where
-    static = "id" =: _aceConfigElemId ac <> _aceConfigElemAttrs ac
+    static = _aceConfigElemAttrs ac
     themeAttr t = " ace-" <> T.pack (show t)
-    addThemeAttr c = maybe static 
+    addThemeAttr c = maybe static
       (\t -> M.insertWith (<>) "class" (themeAttr t) static)
       (_aceDynConfigTheme c)
 
@@ -334,5 +340,3 @@ withAceRef'
     -> m (Event t a)
 withAceRef' ace val =
     performEvent $ attachPromptlyDynWith (flip ($)) (aceRef ace) val
-
-
