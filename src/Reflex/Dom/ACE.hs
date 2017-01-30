@@ -132,6 +132,7 @@ data AceConfig = AceConfig
     { _aceConfigElemAttrs :: Map Text Text
     , _aceConfigBasePath  :: Maybe Text
     , _aceConfigMode      :: Maybe Text
+    , _aceConfigWordWrap  :: Bool
     }
 
 data AceDynConfig = AceDynConfig
@@ -139,7 +140,7 @@ data AceDynConfig = AceDynConfig
     }
 
 instance Default AceConfig where
-    def = AceConfig def def def
+    def = AceConfig def def def False
 
 #ifndef ghcjs_HOST_OS
 data Element = Element
@@ -168,16 +169,19 @@ mtext2val = maybe jsNull (jsval . toJSString)
 ------------------------------------------------------------------------------
 startACE :: Element -> AceConfig -> IO AceRef
 #ifdef ghcjs_HOST_OS
-startACE elmt ac =
-    js_startACE (pToJSVal elmt)
-                (mtext2val $ _aceConfigBasePath ac)
-                (mtext2val $ _aceConfigMode ac)
+startACE elmt ac = do
+    ventura <- js_startACE
+                    (pToJSVal elmt)
+                    (mtext2val $ _aceConfigBasePath ac)
+                    (mtext2val $ _aceConfigMode ac)
+    setUseWrapMode (_aceConfigWordWrap ac) ventura
+    return ventura
 
 foreign import javascript unsafe
-  "(function(){\
-     if ($2) ace['config']['set']('basePath', $2);\
-     var a = ace['edit']($1);\
-     if ($3) a['session']['setMode']($3);\
+  "(function(){ \
+     if ($2) ace['config']['set']('basePath', $2); \
+     var a = ace['edit']($1); \
+     if ($3) a['session']['setMode']($3); \
      return a; })()"
   js_startACE :: JSVal -> JSVal -> JSVal -> IO AceRef
 
@@ -224,6 +228,18 @@ foreign import javascript unsafe
   js_aceSetMode :: JSString -> AceRef -> IO ()
 #else
 setModeACE = error "setModeACE: can only be used with GHCJS"
+#endif
+
+------------------------------------------------------------------------------
+#ifdef ghcjs_HOST_OS
+foreign import javascript unsafe
+    "(function(){ $2.getSession().setUseWrapMode($1); })()"
+    setWrapModeToTrue_ :: JSVal -> JSVal -> IO ()
+setUseWrapMode :: Bool -> AceRef -> IO ()
+setUseWrapMode = (. unAceRef) . setWrapModeToTrue_ . toJSBool
+#else
+setUseWrapMode :: Bool -> AceRef -> IO ()
+setUseWrapMode = error "setUseWrapMode: can only be used with GHCjs"
 #endif
 
 ------------------------------------------------------------------------------
