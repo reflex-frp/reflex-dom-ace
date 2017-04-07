@@ -1,5 +1,5 @@
-{-# LANGUAGE ConstraintKinds          #-}
 {-# LANGUAGE CPP                      #-}
+{-# LANGUAGE ConstraintKinds          #-}
 {-# LANGUAGE FlexibleContexts         #-}
 {-# LANGUAGE FlexibleInstances        #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
@@ -36,20 +36,20 @@ module Reflex.Dom.ACE where
 ------------------------------------------------------------------------------
 import           Control.Monad.Trans
 import           Data.Default
+import           Data.Map               (Map)
+import qualified Data.Map               as M
 import           Data.Monoid
-import           Data.Map (Map)
-import qualified Data.Map as M
-import           Data.Text (Text)
-import qualified Data.Text as T
+import           Data.Text              (Text)
+import qualified Data.Text              as T
 #ifdef ghcjs_HOST_OS
-import           GHCJS.DOM.Types hiding (Event, Text)
-import           GHCJS.Marshal.Pure (pToJSVal)
+import           GHCJS.DOM.Types        hiding (Event, Text)
 import           GHCJS.Foreign
 import           GHCJS.Foreign.Callback
+import           GHCJS.Marshal.Pure     (pToJSVal)
 import           GHCJS.Types
 #endif
 import           Reflex
-import           Reflex.Dom hiding (Element, fromJSString)
+import           Reflex.Dom             hiding (Element, fromJSString)
 ------------------------------------------------------------------------------
 
 
@@ -92,47 +92,48 @@ data AceTheme
   deriving (Eq,Ord,Enum,Bounded)
 
 instance Show AceTheme where
-    show AceTheme_Ambiance = "ambiance"
-    show AceTheme_Chaos = "chaos"
-    show AceTheme_Chrome = "chrome"
-    show AceTheme_Clouds = "clouds"
-    show AceTheme_CloudsMidnight = "clouds_midnight"
-    show AceTheme_Cobalt = "cobalt"
-    show AceTheme_CrimsonEditor = "crimson_editor"
-    show AceTheme_Dawn = "dawn"
-    show AceTheme_Dreamweaver = "dreamweaver"
-    show AceTheme_Eclipse = "eclipse"
-    show AceTheme_Github = "github"
-    show AceTheme_Gruvbox = "gruvbox"
-    show AceTheme_IdleFingers = "idle_fingers"
-    show AceTheme_Iplastic = "iplastic"
-    show AceTheme_Katzenmilch = "katzenmilch"
-    show AceTheme_KrTheme = "kr_theme"
-    show AceTheme_Kuroir = "kuroir"
-    show AceTheme_Merbivore = "merbivore"
-    show AceTheme_MerbivoreSoft = "merbivore_soft"
-    show AceTheme_MonoIndustrial = "mono_industrial"
-    show AceTheme_Monokai = "monokai"
-    show AceTheme_PastelOnDark = "pastel_on_dark"
-    show AceTheme_SolarizedArk = "solarized_ark"
-    show AceTheme_SolarizedLight = "solarized_light"
-    show AceTheme_Sqlserver = "sqlserver"
-    show AceTheme_Terminal = "terminal"
-    show AceTheme_Textmate = "textmate"
-    show AceTheme_Tomorrow = "tomorrow"
-    show AceTheme_TomorrowNight = "tomorrow_night"
-    show AceTheme_TomorrowNightBlue = "tomorrow_night_blue"
-    show AceTheme_TomorrowNightBright = "tomorrow_night_bright"
+    show AceTheme_Ambiance              = "ambiance"
+    show AceTheme_Chaos                 = "chaos"
+    show AceTheme_Chrome                = "chrome"
+    show AceTheme_Clouds                = "clouds"
+    show AceTheme_CloudsMidnight        = "clouds_midnight"
+    show AceTheme_Cobalt                = "cobalt"
+    show AceTheme_CrimsonEditor         = "crimson_editor"
+    show AceTheme_Dawn                  = "dawn"
+    show AceTheme_Dreamweaver           = "dreamweaver"
+    show AceTheme_Eclipse               = "eclipse"
+    show AceTheme_Github                = "github"
+    show AceTheme_Gruvbox               = "gruvbox"
+    show AceTheme_IdleFingers           = "idle_fingers"
+    show AceTheme_Iplastic              = "iplastic"
+    show AceTheme_Katzenmilch           = "katzenmilch"
+    show AceTheme_KrTheme               = "kr_theme"
+    show AceTheme_Kuroir                = "kuroir"
+    show AceTheme_Merbivore             = "merbivore"
+    show AceTheme_MerbivoreSoft         = "merbivore_soft"
+    show AceTheme_MonoIndustrial        = "mono_industrial"
+    show AceTheme_Monokai               = "monokai"
+    show AceTheme_PastelOnDark          = "pastel_on_dark"
+    show AceTheme_SolarizedArk          = "solarized_ark"
+    show AceTheme_SolarizedLight        = "solarized_light"
+    show AceTheme_Sqlserver             = "sqlserver"
+    show AceTheme_Terminal              = "terminal"
+    show AceTheme_Textmate              = "textmate"
+    show AceTheme_Tomorrow              = "tomorrow"
+    show AceTheme_TomorrowNight         = "tomorrow_night"
+    show AceTheme_TomorrowNightBlue     = "tomorrow_night_blue"
+    show AceTheme_TomorrowNightBright   = "tomorrow_night_bright"
     show AceTheme_TomorrowNightEighties = "tomorrow_night_eighties"
-    show AceTheme_Twilight = "twilight"
-    show AceTheme_VibrantInk = "vibrant_ink"
-    show AceTheme_Xcode = "xcode"
+    show AceTheme_Twilight              = "twilight"
+    show AceTheme_VibrantInk            = "vibrant_ink"
+    show AceTheme_Xcode                 = "xcode"
 
 data AceConfig = AceConfig
-    { _aceConfigElemAttrs :: Map Text Text
-    , _aceConfigBasePath  :: Maybe Text
-    , _aceConfigMode      :: Maybe Text
-    , _aceConfigWordWrap  :: Bool
+    { _aceConfigElemAttrs       :: Map Text Text
+    , _aceConfigBasePath        :: Maybe Text
+    , _aceConfigMode            :: Maybe Text
+    , _aceConfigWordWrap        :: Bool
+    , _aceConfigShowPrintMargin :: Bool
     }
 
 data AceDynConfig = AceDynConfig
@@ -140,7 +141,7 @@ data AceDynConfig = AceDynConfig
     }
 
 instance Default AceConfig where
-    def = AceConfig def def def False
+    def = AceConfig def def def False False
 
 #ifndef ghcjs_HOST_OS
 data Element = Element
@@ -175,6 +176,7 @@ startACE elmt ac = do
                     (mtext2val $ _aceConfigBasePath ac)
                     (mtext2val $ _aceConfigMode ac)
     setUseWrapMode (_aceConfigWordWrap ac) ventura
+    setShowPrintMargin (_aceConfigShowPrintMargin ac) ventura
     return ventura
 
 foreign import javascript unsafe
@@ -240,6 +242,18 @@ setUseWrapMode = (. unAceRef) . setWrapModeToTrue_ . toJSBool
 #else
 setUseWrapMode :: Bool -> AceRef -> IO ()
 setUseWrapMode = error "setUseWrapMode: can only be used with GHCjs"
+#endif
+
+------------------------------------------------------------------------------
+#ifdef ghcjs_HOST_OS
+foreign import javascript unsafe
+    "(function(){ $2.setOption('showPrintMargin', $1); })()"
+    setShowPrintMargin_ :: JSVal -> JSVal -> IO ()
+setShowPrintMargin :: Bool -> AceRef -> IO ()
+setShowPrintMargin = (. unAceRef) . setShowPrintMargin_ . toJSBool
+#else
+setShowPrintMargin :: Bool -> AceRef -> IO ()
+setShowPrintMargin = error "setShowPrintMargin: can only be used with GHCjs"
 #endif
 
 ------------------------------------------------------------------------------
@@ -343,7 +357,7 @@ withAceRef
     -> m (Event t ())
 withAceRef ace evt = withAceRef' ace (f <$> evt)
   where
-    f _ Nothing = return ()
+    f _ Nothing  = return ()
     f g (Just a) = g a
 
 
