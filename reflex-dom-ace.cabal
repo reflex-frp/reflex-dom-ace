@@ -10,7 +10,8 @@ cabal-version:       >=1.10
 library
   hs-source-dirs: src
   -- From ace-builds/src-min-noconflict
-  js-sources: lib/ace.js
+  -- removing this so as to avoid compilation
+  -- js-sources: lib/ace.js
 
   exposed-modules:
     Reflex.Dom.ACE

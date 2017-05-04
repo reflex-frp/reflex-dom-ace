@@ -180,11 +180,11 @@ startACE elmt ac = do
     return ventura
 
 foreign import javascript unsafe
-  "(function(){ \
+  "(function(ace){ \
      if ($2) ace['config']['set']('basePath', $2); \
      var a = ace['edit']($1); \
      if ($3) a['session']['setMode']($3); \
-     return a; })()"
+     return a; })(window['ace'])"
   js_startACE :: JSVal -> JSVal -> JSVal -> IO AceRef
 
 #else
@@ -235,7 +235,10 @@ setModeACE = error "setModeACE: can only be used with GHCJS"
 ------------------------------------------------------------------------------
 #ifdef ghcjs_HOST_OS
 foreign import javascript unsafe
-    "(function(){ $2.getSession().setUseWrapMode($1); })()"
+    "(function(){ \
+      var sesh = $2['getSession'](); \
+      sesh['setUseWrapMode']($1); \
+     })()"
     setWrapModeToTrue_ :: JSVal -> JSVal -> IO ()
 setUseWrapMode :: Bool -> AceRef -> IO ()
 setUseWrapMode = (. unAceRef) . setWrapModeToTrue_ . toJSBool
@@ -247,7 +250,7 @@ setUseWrapMode = error "setUseWrapMode: can only be used with GHCjs"
 ------------------------------------------------------------------------------
 #ifdef ghcjs_HOST_OS
 foreign import javascript unsafe
-    "(function(){ $2.setOption('showPrintMargin', $1); })()"
+    "(function(){ $2['setOption']('showPrintMargin', $1); })()"
     setShowPrintMargin_ :: JSVal -> JSVal -> IO ()
 setShowPrintMargin :: Bool -> AceRef -> IO ()
 setShowPrintMargin = (. unAceRef) . setShowPrintMargin_ . toJSBool
@@ -305,7 +308,7 @@ setupValueListener ace = do
     performEventAsync (act <$ pb)
 
 foreign import javascript unsafe
-  "(function(){ $1['on'](\"change\", $2); })()"
+  "(function(){ $1['on']('change', $2); })()"
   js_setupValueListener :: AceRef -> Callback (JSVal -> IO ()) -> IO ()
 #else
 setupValueListener = error "setupValueListener: can only be used with GHCJS"
