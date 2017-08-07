@@ -1,5 +1,5 @@
 name:                reflex-dom-ace
-version:             0.1
+version:             0.2.0.0
 license:             BSD3
 author:              Doug Beardsley
 maintainer:          mightybyte@gmail.com
@@ -9,9 +9,6 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs: src
-  -- From ace-builds/src-min-noconflict
-  -- removing this so as to avoid compilation
-  -- js-sources: lib/ace.js
 
   exposed-modules:
     Reflex.Dom.ACE
@@ -21,16 +18,18 @@ library
     , containers
     , data-default
     , ghcjs-dom
+    , jsaddle
+    , jsaddle-dom
+    , lens
     , mtl
     , reflex
     , reflex-dom
     , text
 
   if impl(ghcjs)
-    build-depends: ghcjs-base
+    cpp-options: -DGHCJS_GC_INTERVAL=60000
 
   ghc-options: -Wall -fno-warn-unused-do-bind -fno-warn-orphans
-  cpp-options: -D_GHCJS_ -DGHCJS_GC_INTERVAL=60000
 
-  default-language:    Haskell2010
+  default-language: Haskell2010
 
