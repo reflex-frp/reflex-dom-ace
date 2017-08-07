@@ -42,9 +42,13 @@ import           Data.Maybe                        (fromMaybe)
 import           Data.Monoid
 import           Data.Text                         (Text)
 import qualified Data.Text                         as T
-import           JSDOM.Types                       (Element, JSVal, toJSString)
-import           Language.Javascript.JSaddle
-import           Language.Javascript.JSaddle.Types (JSM, ghcjsPure, jsval)
+import           GHCJS.DOM.Types                   (Element, JSVal, toJSString)
+import           Language.Javascript.JSaddle       (asyncFunction,
+                                                    fromJSValUnchecked, js, js0,
+                                                    js1, js2, jsg, jsval,
+                                                    pToJSVal)
+import           Language.Javascript.JSaddle.Types (JSM, MonadJSM, ghcjsPure,
+                                                    liftJSM)
 import           Language.Javascript.JSaddle.Value (jsNull)
 import           Reflex
 import           Reflex.Dom                        hiding (Element,
@@ -80,7 +84,7 @@ data AceTheme
   | AceTheme_MonoIndustrial
   | AceTheme_Monokai
   | AceTheme_PastelOnDark
-  | AceTheme_SolarizedArk
+  | AceTheme_SolarizedDark
   | AceTheme_Terminal
   | AceTheme_TomorrowNight
   | AceTheme_TomorrowNightBlue
@@ -113,7 +117,7 @@ instance Show AceTheme where
     show AceTheme_MonoIndustrial        = "mono_industrial"
     show AceTheme_Monokai               = "monokai"
     show AceTheme_PastelOnDark          = "pastel_on_dark"
-    show AceTheme_SolarizedArk          = "solarized_ark"
+    show AceTheme_SolarizedDark         = "solarized_dark"
     show AceTheme_SolarizedLight        = "solarized_light"
     show AceTheme_Sqlserver             = "sqlserver"
     show AceTheme_Terminal              = "terminal"
@@ -152,7 +156,7 @@ data ACE t = ACE
 mtext2val :: Maybe Text -> JSM JSVal
 mtext2val = maybe (pure jsNull) (ghcjsPure . jsval . toJSString)
 
- 
+
 ------------------------------------------------------------------------------
 startACE :: MonadJSM m => Element -> AceConfig -> m AceInstance
 startACE elmt ac = liftJSM $ do

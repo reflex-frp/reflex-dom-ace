@@ -19,7 +19,6 @@ library
     , data-default
     , ghcjs-dom
     , jsaddle
-    , jsaddle-dom
     , lens
     , mtl
     , reflex
