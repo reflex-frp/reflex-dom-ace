@@ -1,11 +1,9 @@
-{-# LANGUAGE CPP                      #-}
 {-# LANGUAGE ConstraintKinds          #-}
 {-# LANGUAGE FlexibleContexts         #-}
 {-# LANGUAGE FlexibleInstances        #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
-{-# LANGUAGE JavaScriptFFI            #-}
+{-# LANGUAGE LambdaCase               #-}
 {-# LANGUAGE MultiParamTypeClasses    #-}
-{-# LANGUAGE OverloadedStrings        #-}
 {-# LANGUAGE RecordWildCards          #-}
 {-# LANGUAGE RecursiveDo              #-}
 {-# LANGUAGE ScopedTypeVariables      #-}
@@ -23,7 +21,7 @@ Example usage:
 
     -- The rest is optional and lets you change what's in the editor on the fly
     -- fly without redrawing the widget.
-    withAceRef ace (setValueACE <$> updatesToContents)
+    withAceInstance ace (setValueACE <$> updatesToContents)
     holdDyn iv $ leftmost
       [ updatesToContents
       , updated (aceValue ace)
@@ -34,22 +32,27 @@ Example usage:
 module Reflex.Dom.ACE where
 
 ------------------------------------------------------------------------------
+import           Control.Lens                      ((^.))
+import           Control.Monad                     (unless, void)
 import           Control.Monad.Trans
 import           Data.Default
-import           Data.Map               (Map)
-import qualified Data.Map               as M
+import           Data.Map                          (Map)
+import qualified Data.Map                          as M
+import           Data.Maybe                        (fromMaybe)
 import           Data.Monoid
-import           Data.Text              (Text)
-import qualified Data.Text              as T
-#ifdef ghcjs_HOST_OS
-import           GHCJS.DOM.Types        hiding (Event, Text)
-import           GHCJS.Foreign
-import           GHCJS.Foreign.Callback
-import           GHCJS.Marshal.Pure     (pToJSVal)
-import           GHCJS.Types
-#endif
+import           Data.Text                         (Text)
+import qualified Data.Text                         as T
+import           GHCJS.DOM.Types                   (Element, JSVal, toJSString)
+import           Language.Javascript.JSaddle       (asyncFunction,
+                                                    fromJSValUnchecked, js, js0,
+                                                    js1, js2, jsg, jsval,
+                                                    pToJSVal)
+import           Language.Javascript.JSaddle.Types (JSM, MonadJSM, ghcjsPure,
+                                                    liftJSM)
+import           Language.Javascript.JSaddle.Value (jsNull)
 import           Reflex
-import           Reflex.Dom             hiding (Element, fromJSString)
+import           Reflex.Dom                        hiding (Element,
+                                                    fromJSString)
 ------------------------------------------------------------------------------
 
 
@@ -81,7 +84,7 @@ data AceTheme
   | AceTheme_MonoIndustrial
   | AceTheme_Monokai
   | AceTheme_PastelOnDark
-  | AceTheme_SolarizedArk
+  | AceTheme_SolarizedDark
   | AceTheme_Terminal
   | AceTheme_TomorrowNight
   | AceTheme_TomorrowNightBlue
@@ -114,7 +117,7 @@ instance Show AceTheme where
     show AceTheme_MonoIndustrial        = "mono_industrial"
     show AceTheme_Monokai               = "monokai"
     show AceTheme_PastelOnDark          = "pastel_on_dark"
-    show AceTheme_SolarizedArk          = "solarized_ark"
+    show AceTheme_SolarizedDark         = "solarized_dark"
     show AceTheme_SolarizedLight        = "solarized_light"
     show AceTheme_Sqlserver             = "sqlserver"
     show AceTheme_Terminal              = "terminal"
@@ -143,233 +146,151 @@ data AceDynConfig = AceDynConfig
 instance Default AceConfig where
     def = AceConfig def def def False False
 
-#ifndef ghcjs_HOST_OS
-data Element = Element
-data JSVal = JSVal
-jsNull :: JSVal
-jsNull = JSVal
-
-jsval :: a -> JSVal
-jsval = const JSVal
-
-toJSString :: a -> b
-toJSString _ = undefined
-
-#endif
-
-newtype AceRef = AceRef { unAceRef :: JSVal }
+newtype AceInstance = AceInstance { unAceInstance :: JSVal }
 
 data ACE t = ACE
-    { aceRef   :: Dynamic t (Maybe AceRef)
+    { aceRef   :: Dynamic t (Maybe AceInstance)
     , aceValue :: Dynamic t Text
     }
 
-mtext2val :: Maybe Text -> JSVal
-mtext2val = maybe jsNull (jsval . toJSString)
+mtext2val :: Maybe Text -> JSM JSVal
+mtext2val = maybe (pure jsNull) (ghcjsPure . jsval . toJSString)
+
 
 ------------------------------------------------------------------------------
-startACE :: Element -> AceConfig -> IO AceRef
-#ifdef ghcjs_HOST_OS
-startACE elmt ac = do
-    ventura <- js_startACE
-                    (pToJSVal elmt)
-                    (mtext2val $ _aceConfigBasePath ac)
-                    (mtext2val $ _aceConfigMode ac)
-    setUseWrapMode (_aceConfigWordWrap ac) ventura
-    setShowPrintMargin (_aceConfigShowPrintMargin ac) ventura
-    return ventura
+startACE :: MonadJSM m => Element -> AceConfig -> m AceInstance
+startACE elmt ac = liftJSM $ do
+  aceVal <- jsg "ace"
+  let [basePath, mode] = map (fromMaybe (T.pack "") . ($ ac))
+                              [_aceConfigBasePath, _aceConfigMode]
+  -- Set the base path if given
+  unless (T.null basePath) $ do
+    config <- aceVal ^. js "config"
+    void $ config ^. js2 "set" "basePath" basePath
+  -- Start and return an editing session
+  editSession <- aceVal ^. js1 "edit" (pToJSVal elmt)
+  -- Set the mode if given
+  unless (T.null mode) $ do
+    session <- editSession ^. js "session"
+    void $ session ^. js1 "setMode" mode
+  let aceInst  = AceInstance editSession
+  setUseWrapMode (_aceConfigWordWrap ac) aceInst
+  setShowPrintMargin (_aceConfigShowPrintMargin ac) aceInst
+  return aceInst
 
-foreign import javascript unsafe
-  "(function(ace){ \
-     if ($2) ace['config']['set']('basePath', $2); \
-     var a = ace['edit']($1); \
-     if ($3) a['session']['setMode']($3); \
-     return a; })(window['ace'])"
-  js_startACE :: JSVal -> JSVal -> JSVal -> IO AceRef
-
-#else
-startACE = error "startACE: can only be used with GHCJS"
-#endif
 
 ------------------------------------------------------------------------------
-moveCursorToPosition :: (Int, Int) -> AceRef -> IO ()
-#ifdef ghcjs_HOST_OS
-moveCursorToPosition (r,c) a = js_moveCursorToPosition a r c
+moveCursorToPosition :: MonadJSM m => (Int, Int) -> AceInstance -> m ()
+moveCursorToPosition (r, c) (AceInstance ace) =
+  liftJSM $ void $ ace ^. js2 "gotoLine" r c
 
-foreign import javascript unsafe
-  "(function(){ $1['gotoLine']($2, $3, true); })()"
-  js_moveCursorToPosition :: AceRef -> Int -> Int -> IO ()
-#else
-moveCursorToPosition _ _ =
-  error "moveCursorToPosition: can only be used with GHCJS"
-#endif
 
 ------------------------------------------------------------------------------
-setThemeACE :: MonadIO m => Maybe AceTheme -> AceRef -> m ()
-#ifdef ghcjs_HOST_OS
-setThemeACE Nothing _ = return ()
-setThemeACE (Just theme) ref =
-    liftIO $ js_aceSetTheme ref (toJSString themeStr)
-  where
-    themeStr = "ace/theme/" <> show theme
+setThemeACE :: MonadJSM m => Maybe AceTheme -> AceInstance -> m ()
+setThemeACE Nothing      _                 = return ()
+setThemeACE (Just theme) (AceInstance ace) =
+  liftJSM $ void $ ace ^. js1 "setTheme" themeStr
+  where themeStr = "ace/theme/" <> show theme
 
-foreign import javascript unsafe
-  "(function(){ return $1['setTheme']($2); })()"
-  js_aceSetTheme :: AceRef -> JSString -> IO ()
-#else
-setThemeACE = error "setThemeACE: can only be used with GHCJS"
-#endif
 
 ------------------------------------------------------------------------------
-setModeACE :: MonadIO m => Text -> AceRef -> m ()
-#ifdef ghcjs_HOST_OS
-setModeACE mode = liftIO . js_aceSetMode (toJSString mode)
+setModeACE :: MonadJSM m => Text -> AceInstance -> m ()
+setModeACE mode (AceInstance ace) = liftJSM $ do
+  session <- ace ^. js "session"
+  void $ session ^. js1 "setMode" mode
 
-foreign import javascript unsafe
-  "(function(){ return $1['session']['setMode']($2); })()"
-  js_aceSetMode :: JSString -> AceRef -> IO ()
-#else
-setModeACE = error "setModeACE: can only be used with GHCJS"
-#endif
 
 ------------------------------------------------------------------------------
-#ifdef ghcjs_HOST_OS
-foreign import javascript unsafe
-    "(function(){ \
-      var sesh = $2['getSession'](); \
-      sesh['setUseWrapMode']($1); \
-     })()"
-    setWrapModeToTrue_ :: JSVal -> JSVal -> IO ()
-setUseWrapMode :: Bool -> AceRef -> IO ()
-setUseWrapMode = (. unAceRef) . setWrapModeToTrue_ . toJSBool
-#else
-setUseWrapMode :: Bool -> AceRef -> IO ()
-setUseWrapMode = error "setUseWrapMode: can only be used with GHCjs"
-#endif
+setUseWrapMode :: MonadJSM m => Bool -> AceInstance -> m ()
+setUseWrapMode shouldWrap (AceInstance ace) = liftJSM $ do
+  session <- ace ^. js0 "getSession"
+  void $ session ^. js1 "setUseWrapMode" shouldWrap
+
 
 ------------------------------------------------------------------------------
-#ifdef ghcjs_HOST_OS
-foreign import javascript unsafe
-    "(function(){ $2['setOption']('showPrintMargin', $1); })()"
-    setShowPrintMargin_ :: JSVal -> JSVal -> IO ()
-setShowPrintMargin :: Bool -> AceRef -> IO ()
-setShowPrintMargin = (. unAceRef) . setShowPrintMargin_ . toJSBool
-#else
-setShowPrintMargin :: Bool -> AceRef -> IO ()
-setShowPrintMargin = error "setShowPrintMargin: can only be used with GHCjs"
-#endif
+setShowPrintMargin :: MonadJSM m => Bool -> AceInstance -> m ()
+setShowPrintMargin shouldShow (AceInstance ace) =
+  liftJSM $ void $ ace ^. js2 "setOption" "showPrintMargin" shouldShow
+
 
 ------------------------------------------------------------------------------
-setConfigACE :: MonadIO m => Text -> Text -> AceRef -> m ()
-#ifdef ghcjs_HOST_OS
-setConfigACE key val = liftIO . js_aceSetConfig (toJSString key) (toJSString val)
+setConfigACE :: MonadJSM m => Text -> Text -> AceInstance -> m ()
+setConfigACE t1 t2 (AceInstance ace) = liftJSM $ do
+  cfg <- ace ^. js "config"
+  void $ cfg ^. js2 "set" t1 t2
 
-foreign import javascript unsafe
-  "(function(){ return $3['config']['set']($1, $2); })()"
-  js_aceSetConfig :: JSString -> JSString -> AceRef -> IO ()
-#else
-setConfigACE = error "setConfigACE: can only be used with GHCJS"
-#endif
 
 ------------------------------------------------------------------------------
-getValueACE :: MonadIO m => AceRef -> m Text
-#ifdef ghcjs_HOST_OS
-getValueACE a = liftIO $ fromJSString <$> js_aceGetValue a
+getValueACE :: MonadJSM m => AceInstance -> m Text
+getValueACE (AceInstance ace) =
+  liftJSM $ ace ^. js0 "getValue" >>= fromJSValUnchecked
 
-foreign import javascript unsafe
-  "(function(){ return $1['getValue'](); })()"
-  js_aceGetValue :: AceRef -> IO JSString
-#else
-getValueACE = error "getValueACE: can only be used with GHCJS"
-#endif
 
 ------------------------------------------------------------------------------
-setValueACE :: MonadIO m => Text -> AceRef -> m ()
-#ifdef ghcjs_HOST_OS
-setValueACE v a = liftIO $ js_aceSetValue a (toJSString v)
+setValueACE :: MonadJSM m => Text -> AceInstance -> m ()
+setValueACE t (AceInstance ace) =
+  liftJSM $ void $ ace ^. js2 "setValue" t (-1 :: Int)
 
-foreign import javascript unsafe
-  "(function(){ $1['setValue']($2, -1); })()"
-  js_aceSetValue :: AceRef -> JSString -> IO ()
-#else
-setValueACE = error "setValueACE: can only be used with GHCJS"
-#endif
 
 ------------------------------------------------------------------------------
-setupValueListener :: MonadWidget t m => AceRef -> m (Event t Text)
-#ifdef ghcjs_HOST_OS
-setupValueListener ace = do
-    pb <- getPostBuild
-    let act cb = liftIO $ do
-          jscb <- asyncCallback1 $ \_ -> liftIO $ do
-              v <- getValueACE ace
-              cb v
-          js_setupValueListener ace jscb
-    performEventAsync (act <$ pb)
-
-foreign import javascript unsafe
-  "(function(){ $1['on']('change', $2); })()"
-  js_setupValueListener :: AceRef -> Callback (JSVal -> IO ()) -> IO ()
-#else
-setupValueListener = error "setupValueListener: can only be used with GHCJS"
-#endif
+setupValueListener
+  :: (MonadJSM (Performable m), DomBuilder t m, PostBuild t m, TriggerEvent t m, PerformEvent t m)
+  => AceInstance
+  -> m (Event t Text)
+setupValueListener (AceInstance ace) = do
+  pb  <- getPostBuild
+  let act cb = liftJSM $ do
+        jscb <- asyncFunction $ \_ _ _ -> getValueACE (AceInstance ace) >>= liftIO . cb
+        void $ ace ^. js2 "on" "change" jscb
+  performEventAsync (act <$ pb)
 
 
 ------------------------------------------------------------------------------
 -- | Main entry point
 aceWidget
     :: MonadWidget t m
-    => AceConfig
-    -> AceDynConfig
-    -> Event t AceDynConfig
-    -> Text
-    -> m (ACE t)
+    => AceConfig -> AceDynConfig -> Event t AceDynConfig -> Text -> m (ACE t)
 aceWidget ac adc adcUps initContents = do
     attrs <- holdDyn (addThemeAttr adc) (addThemeAttr <$> adcUps)
-    aceDiv <- fmap fst $ elDynAttr' "div" attrs $ text initContents
-#ifdef ghcjs_HOST_OS
-    let aceEl = _element_raw aceDiv
-#else
-    let aceEl = (error "aceWidget is only available to ghcjs") aceDiv
-#endif
+    aceDiv <- fmap fst $ elDynAttr' (T.pack "div") attrs $ text initContents
     pb <- getPostBuild
-    aceUpdates <- performEvent (liftIO (startACE aceEl ac) <$ pb)
+    aceUpdates <- performEvent (liftJSM (startACE (_element_raw aceDiv) ac) <$ pb)
 
     res <- widgetHold (return never) $ setupValueListener <$> aceUpdates
     aceDyn <- holdDyn Nothing $ Just <$> aceUpdates
     updatesDyn <- holdDyn initContents $ switchPromptlyDyn res
 
     let ace = ACE aceDyn updatesDyn
-    withAceRef ace (setThemeACE (_aceDynConfigTheme adc) <$ pb)
-    withAceRef ace (setThemeACE . _aceDynConfigTheme <$> adcUps)
+    withAceInstance ace (setThemeACE (_aceDynConfigTheme adc) <$ pb)
+    withAceInstance ace (setThemeACE . _aceDynConfigTheme <$> adcUps)
     return ace
   where
     static = _aceConfigElemAttrs ac
-    themeAttr t = " ace-" <> T.pack (show t)
+    themeAttr t = T.pack $ " ace-" <> show t
     addThemeAttr c = maybe static
-      (\t -> M.insertWith (<>) "class" (themeAttr t) static)
+      (\t -> M.insertWith (<>) (T.pack "class") (themeAttr t) static)
       (_aceDynConfigTheme c)
 
 
 ------------------------------------------------------------------------------
--- | Convenient helper function for running functions that need an AceRef.
-withAceRef
+-- | Convenient helper function for running functions that need an AceInstance.
+withAceInstance
     :: PerformEvent t m
     => ACE t
-    -> Event t (AceRef -> Performable m ())
+    -> Event t (AceInstance -> Performable m ())
     -> m (Event t ())
-withAceRef ace evt = withAceRef' ace (f <$> evt)
+withAceInstance ace evt = withAceInstance' ace (f <$> evt)
   where
     f _ Nothing  = return ()
     f g (Just a) = g a
 
 
 ------------------------------------------------------------------------------
--- | More powerful function for running functions that need an AceRef.
-withAceRef'
+-- | More powerful function for running functions that need an AceInstance.
+withAceInstance'
     :: PerformEvent t m
     => ACE t
-    -> Event t (Maybe AceRef -> Performable m a)
+    -> Event t (Maybe AceInstance -> Performable m a)
     -> m (Event t a)
-withAceRef' ace val =
-    performEvent $ attachPromptlyDynWith (flip ($)) (aceRef ace) val
+withAceInstance' ace =
+  performEvent . attachPromptlyDynWith (flip ($)) (aceRef ace)
