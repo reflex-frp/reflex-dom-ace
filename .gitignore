@@ -1,2 +1,5 @@
 dist
 *.swp
+.DS_Store
+.stack-work
+dist*
