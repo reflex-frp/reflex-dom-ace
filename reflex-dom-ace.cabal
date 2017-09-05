@@ -33,6 +33,7 @@ library
   default-language: Haskell2010
 
 executable reflex-dom-ace-exe
+  buildable:           False
   hs-source-dirs:      app
   main-is:             Main.hs
   ghc-options:         -Wall -threaded -rtsopts -with-rtsopts=-N
