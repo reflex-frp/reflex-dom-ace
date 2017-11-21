@@ -316,15 +316,12 @@ aceWidget
 aceWidget ac adc adcUps initContents = do
     attrs <- holdDyn (addThemeAttr adc) (addThemeAttr <$> adcUps)
     aceDiv <- fmap fst $ elDynAttr' (T.pack "div") attrs $ text initContents
-    pb <- getPostBuild
-    aceUpdates <- performEvent (liftJSM (startACE (_element_raw aceDiv) ac) <$ pb)
+    aceInstance <- startACE (_element_raw aceDiv) ac
+    onChange <- setupValueListener aceInstance
+    updatesDyn <- holdDyn initContents onChange
 
-    res <- widgetHold (return never) $ setupValueListener <$> aceUpdates
-    aceDyn <- holdDyn Nothing $ Just <$> aceUpdates
-    updatesDyn <- holdDyn initContents $ switchPromptlyDyn res
-
-    let ace = ACE aceDyn updatesDyn
-    withAceInstance ace (setThemeACE (_aceDynConfigTheme adc) <$ pb)
+    let ace = ACE (constDyn $ pure aceInstance) updatesDyn
+    setThemeACE (_aceDynConfigTheme adc) aceInstance
     withAceInstance ace (setThemeACE . _aceDynConfigTheme <$> adcUps)
     return ace
   where
