@@ -32,17 +32,18 @@ library
 
   default-language: Haskell2010
 
-executable reflex-dom-ace-exe
-  buildable:           False
-  hs-source-dirs:      app
-  main-is:             Main.hs
-  ghc-options:         -Wall -threaded -rtsopts -with-rtsopts=-N
-  build-depends:       base
-                     , directory
-                     , jsaddle
-                     , jsaddle-warp
-                     , reflex-dom
-                     , reflex-dom-core
-                     , reflex-dom-ace
-                     , text
-                     , wai-app-static
+-- Commented out for now to avoid build dependency issues
+-- executable reflex-dom-ace-exe
+--   buildable:           False
+--   hs-source-dirs:      app
+--   main-is:             Main.hs
+--   ghc-options:         -Wall -threaded -rtsopts -with-rtsopts=-N
+--   build-depends:       base
+--                      , directory
+--                      , jsaddle
+--                      , jsaddle-warp
+--                      , reflex-dom
+--                      , reflex-dom-core
+--                      , reflex-dom-ace
+--                      , text
+--                      , wai-app-static
