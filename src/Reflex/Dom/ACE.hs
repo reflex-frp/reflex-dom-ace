@@ -11,6 +11,11 @@
 
 Basic support for using the ACE editor with Reflex.
 
+IMPORTANT NOTE:
+
+This currently does not work if your app is using reflex-dom's
+mainWidgetWithHead or mainWidgetWithCss.
+
 Example usage:
 
     ace <- divClass "yourACEWrapperDiv" $ -- wrapper div not required
@@ -310,6 +315,11 @@ setupValueListener (AceInstance ace) = do
 
 ------------------------------------------------------------------------------
 -- | Main entry point
+--
+-- IMPORTANT NOTE:
+--
+-- This currently does not work if your app is using reflex-dom's
+-- mainWidgetWithHead or mainWidgetWithCss.
 aceWidget
     :: MonadWidget t m
     => AceConfig -> AceDynConfig -> Event t AceDynConfig -> Text -> m (ACE t)
