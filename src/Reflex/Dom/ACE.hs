@@ -333,7 +333,13 @@ aceWidget ac adc adcUps initContents = do
 
 
 ------------------------------------------------------------------------------
--- | Main entry point
+-- | This function is the same a aceWidget except it uses elAttr' instead of
+-- elDynAttr' which for some unexplained reason solves editor rendering
+-- problems in some situations.
+--
+-- We're adding this as a separate function to avoid potentially breaking
+-- users that may have been depending on the old behavior.  This function may
+-- replace aceWidget in the future and go away.
 aceWidgetStatic
     :: MonadWidget t m
     => AceConfig -> AceDynConfig -> Text -> m (ACE t)
