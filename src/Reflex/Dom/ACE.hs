@@ -343,6 +343,34 @@ aceWidget ac adc adcUps initContents = do
 
 
 ------------------------------------------------------------------------------
+-- | This function is the same a aceWidget except it uses elAttr' instead of
+-- elDynAttr' which for some unexplained reason solves editor rendering
+-- problems in some situations.
+--
+-- We're adding this as a separate function to avoid potentially breaking
+-- users that may have been depending on the old behavior.  This function may
+-- replace aceWidget in the future and go away.
+aceWidgetStatic
+    :: MonadWidget t m
+    => AceConfig -> AceDynConfig -> Text -> m (ACE t)
+aceWidgetStatic ac adc initContents = do
+    aceDiv <- fmap fst $ elAttr' (T.pack "div") (addThemeAttr adc) $ text initContents
+    aceInstance <- startACE (_element_raw aceDiv) ac
+    onChange <- setupValueListener aceInstance
+    updatesDyn <- holdDyn initContents onChange
+
+    let ace = ACE (constDyn $ pure aceInstance) updatesDyn
+    setThemeACE (_aceDynConfigTheme adc) aceInstance
+    return ace
+  where
+    static = _aceConfigElemAttrs ac
+    themeAttr t = T.pack $ " ace-" <> show t
+    addThemeAttr c = maybe static
+      (\t -> M.insertWith (<>) (T.pack "class") (themeAttr t) static)
+      (_aceDynConfigTheme c)
+
+
+------------------------------------------------------------------------------
 -- | Convenient helper function for running functions that need an AceInstance.
 withAceInstance
     :: PerformEvent t m
