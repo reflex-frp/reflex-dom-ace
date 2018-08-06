@@ -22,7 +22,7 @@ library
     , lens
     , mtl
     , reflex
-    , reflex-dom
+    , reflex-dom-core
     , text
 
   if impl(ghcjs)
@@ -41,7 +41,6 @@ executable reflex-dom-ace-exe
                      , directory
                      , jsaddle
                      , jsaddle-warp
-                     , reflex-dom
                      , reflex-dom-core
                      , reflex-dom-ace
                      , text

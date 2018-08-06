@@ -55,7 +55,7 @@ import           Language.Javascript.JSaddle.Types  (JSM, MonadJSM, ghcjsPure,
                                                      liftJSM)
 import           Language.Javascript.JSaddle.Value  (ToJSVal (..), jsNull)
 import           Reflex
-import           Reflex.Dom                         hiding (Element,
+import           Reflex.Dom.Core                    hiding (Element,
                                                      fromJSString)
 ------------------------------------------------------------------------------
 
