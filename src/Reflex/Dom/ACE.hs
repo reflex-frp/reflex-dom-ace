@@ -137,6 +137,7 @@ data AceConfig = AceConfig
     , _aceConfigMode            :: Maybe Text
     , _aceConfigWordWrap        :: Bool
     , _aceConfigShowPrintMargin :: Bool
+    , _aceConfigReadOnly        :: Bool
     }
 
 
@@ -146,7 +147,7 @@ data AceDynConfig = AceDynConfig
 
 
 instance Default AceConfig where
-    def = AceConfig def def def False False
+    def = AceConfig def def def False False False
 
 
 newtype AceInstance = AceInstance { unAceInstance :: JSVal }
@@ -216,6 +217,8 @@ startACE elmt ac = liftJSM $ do
   unless (T.null mode) $ do
     session <- editSession ^. js "session"
     void $ session ^. js1 "setMode" mode
+  -- Set readOnly
+  void $ editSession ^. js1 "setReadOnly" (_aceConfigReadOnly ac)
   let aceInst  = AceInstance editSession
   setUseWrapMode (_aceConfigWordWrap ac) aceInst
   setShowPrintMargin (_aceConfigShowPrintMargin ac) aceInst
@@ -241,6 +244,12 @@ setModeACE :: MonadJSM m => Text -> AceInstance -> m ()
 setModeACE mode (AceInstance ace) = liftJSM $ do
   session <- ace ^. js "session"
   void $ session ^. js1 "setMode" mode
+
+
+------------------------------------------------------------------------------
+setReadOnlyACE :: MonadJSM m => Bool -> AceInstance -> m ()
+setReadOnlyACE readOnly (AceInstance ace) =
+  liftJSM $ void $ ace ^. js1 "setReadOnly" readOnly
 
 
 ------------------------------------------------------------------------------
